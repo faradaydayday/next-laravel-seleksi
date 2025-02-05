@@ -5,7 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Post;
-use illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Storage;
+
 class PostController extends Controller
 {
     /**
@@ -13,9 +14,16 @@ class PostController extends Controller
      */
     public function index()
     {
-        $posts = Post::all();
-        return response()->json($posts);
+        {
+            $posts = Post::all()->map(function ($post) {
+                $post->image = $post->image ? asset('storage/' . $post->image) : null;
+                return $post;
+            });
+
+            return response()->json($posts);
+        }
     }
+
 
     /**
      * Store a newly created resource in storage.
@@ -48,6 +56,8 @@ class PostController extends Controller
     public function show($id)
     {
         $post = Post::findOrFail($id);
+        $post->image = $post->image ? asset('storage/' . $post->image) : null;
+
         return response()->json($post);
     }
 
@@ -55,34 +65,35 @@ class PostController extends Controller
      * Update the specified resource in storage.
      */
     public function update(Request $request, Post $post)
-{
-    $request->validate([
-        'nama' => 'required|string|max:255',
-        'konten' => 'required|string',
-        'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-    ]);
+    {
+        $request->validate([
+            'nama' => 'required|string|max:255',
+            'konten' => 'required|string',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+        ]);
 
-    if ($request->hasFile('image')) {
-        // Hapus gambar lama jika ada
-        if ($post->image && Storage::disk('public')->exists($post->image)) {
-            Storage::disk('public')->delete($post->image);
+        if ($request->hasFile('image')) {
+            // Delete old image if exists
+            if ($post->image && Storage::disk('public')->exists($post->image)) {
+                Storage::disk('public')->delete($post->image);
+            }
+            // Save new image
+            $imagePath = $request->file('image')->store('posts', 'public');
+            $post->image = $imagePath;
         }
-        // Simpan gambar baru
-        $imagePath = $request->file('image')->store('posts', 'public');
-        $post->image = $imagePath;
+
+        $post->nama = $request->nama;
+        $post->konten = $request->konten;
+        $post->save();
+
+        return response()->json($post);
     }
 
-    $post->nama = $request->nama;
-    $post->konten = $request->konten;
-    $post->save();
-
-    return response()->json($post);
-}
 
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Post $post)
+   public function destroy(Post $post)
 {
     if ($post->image && Storage::disk('public')->exists($post->image)) {
         Storage::disk('public')->delete($post->image);
